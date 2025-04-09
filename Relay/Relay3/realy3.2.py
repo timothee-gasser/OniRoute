@@ -50,7 +50,7 @@ def handle_client(client_conn, client_addr):
 
 def start_relay():
     relay_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    relay_socket.bind(('127.0.0.1', 7001))
+    relay_socket.bind(('127.0.0.1', 3002))
     relay_socket.listen()
     print("[Relai1] En attente de connexions clients...")
 
