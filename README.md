@@ -93,6 +93,29 @@ niveau_du_noeud, identifiant_noeud (hex), port, clef_de_chiffrement
   - `cryptography` ou `pycryptodome` pour le chiffrement AES.
   - Fichiers PEM pour la gestion des clés.
 
+
+## 🔐 Sécurité & Chiffrement
+
+Ce projet repose sur un **chiffrement hybride**, combinant chiffrement asymétrique et symétrique :
+
+- Le **client** chiffre une clé AES pour chaque relais à l’aide de la **clé publique** correspondante (non incluse dans le dépôt).
+- Le **message** est ensuite chiffré avec cette clé AES.
+- Chaque **relais** ne possède que sa **clé privée**, ce qui lui permet de déchiffrer uniquement **sa propre couche** du message.
+
+### 🔒 Confidentialité
+
+- Un relais ne connaît que :
+  - Sa propre clé privée.
+  - L'adresse du **relais suivant**.
+  - La **couche suivante du message**, toujours chiffrée.
+
+- Un relais **ne peut pas** :
+  - Lire le message complet.
+  - Connaître l'identité de l'expéditeur.
+  - Connaître l'identité du destinataire.
+
+Ce mécanisme garantit un haut niveau d’anonymat et d’isolation entre les nœuds du circuit.
+
 ## 📚 Ressources utiles
 
 - [Routage en oignon sur Wikipédia](https://fr.wikipedia.org/wiki/Routage_en_oignon)
