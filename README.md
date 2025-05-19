@@ -94,6 +94,50 @@ niveau_du_noeud, identifiant_noeud (hex), port, clef_de_chiffrement
   - Fichiers PEM pour la gestion des clés.
 
 
+
+## 🔐 Chiffrement Hybride : Principe et Raisons
+
+OniRoute utilise une approche de **chiffrement hybride** pour combiner les avantages des deux grandes familles de cryptographie : **asymétrique (RSA)** et **symétrique (AES)**.
+
+### 🔄 Étapes du chiffrement hybride pour chaque relais
+
+1. 🔐 Générer une **clé AES** aléatoire (256 bits) :
+   ```python
+   key = os.urandom(32)
+   ```
+
+2. 🔒 Chiffrer le **message** avec AES (en mode CBC ou GCM) :
+   ```python
+   encrypted_message = aes_encrypt(message, key, iv)
+   ```
+
+3. 🔐 Chiffrer la **clé AES** avec la **clé publique RSA** du relais :
+   ```python
+   encrypted_key = rsa_encrypt(key, relay_public_key)
+   ```
+
+4. 📦 Combiner :
+   - Clé AES chiffrée
+   - IV (vecteur d'initialisation)
+   - Message chiffré
+
+   En un seul bloc transmis au relais :
+   ```plaintext
+   [clé AES chiffrée] + [IV] + [message AES chiffré]
+   ```
+
+### ❓ Pourquoi ce choix ?
+
+- ✅ **Sécurité renforcée** : la clé AES est protégée par RSA, ce qui empêche un relais non autorisé de la lire.
+- ✅ **Performance** : le chiffrement symétrique (AES) est bien plus rapide que le chiffrement asymétrique pour les données volumineuses.
+- ✅ **Modularité** : chaque couche de chiffrement est indépendante, assurant qu’un relais ne peut pas remonter à l’expéditeur ni lire le contenu final.
+- ✅ **Confidentialité** : comme chaque relais ne détient que sa **clé privée**, il est incapable :
+  - De reconstituer l'intégralité du message.
+  - D’identifier l'expéditeur ou le destinataire final.
+
+Cette méthode est inspirée des principes appliqués dans des protocoles anonymes comme **Tor**, tout en restant légère et pédagogique pour un usage d’apprentissage.
+
+
 ## 🔐 Sécurité & Chiffrement
 
 Ce projet repose sur un **chiffrement hybride**, combinant chiffrement asymétrique et symétrique :
