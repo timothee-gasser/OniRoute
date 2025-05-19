@@ -1,65 +1,82 @@
 import socket
 import threading
 
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-def handle_client(client_conn, client_addr):
-    print(f"[Relai1] Nouveau client connecté : {client_addr}")
 
+PORT = 4003
+CLE_PRIVEE_PATH = "././keys/0C_private.pem"
+
+def charger_cle_privee(path):
+    with open(path, "rb") as f:
+        return serialization.load_pem_private_key(f.read(), password=None)
+
+def dechiffrer_hybride(paquet: bytes, cle_privee_rsa):
+    encrypted_key = paquet[:256]
+    iv = paquet[256:272]
+    ciphertext = paquet[272:]
+    aes_key = cle_privee_rsa.decrypt(
+        encrypted_key,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+
+    cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
+    decryptor = cipher.decryptor()
+    padded_msg = decryptor.update(ciphertext) + decryptor.finalize()
+
+    pad_len = padded_msg[-1]
+    return padded_msg[:-pad_len]
+
+def handle_client(client_conn, client_addr, cle_privee):
+    print(f"[Relai] Connexion de {client_addr}")
     try:
-        full_msg = client_conn.recv(1024).decode()
-        print(f"[Relai1] Message brut : {full_msg}")
+        data = client_conn.recv(4096)
+        decrypted_data = dechiffrer_hybride(data, cle_privee)
 
-        split_index = full_msg.find("),")
+        split_index = decrypted_data.find(b"),")
         if split_index == -1:
-            raise ValueError("Format de message invalide")
+            raise ValueError("Format invalide")
 
-
-        target_str = full_msg[:split_index + 1]
-        client_msg = full_msg[split_index + 2:].strip()
-
+        target_str = decrypted_data[:split_index + 1].decode()
+        client_msg = decrypted_data[split_index + 2:]
 
         target_tuple = eval(target_str)
-        if not (isinstance(target_tuple, tuple) and len(target_tuple) == 2):
-            raise ValueError("Adresse invalide")
-
         target_ip, target_port = target_tuple
-        print(f"[Relai1] Redirection vers {target_ip}:{target_port}")
 
+        print(f"[Relai] Transfert vers {target_ip}:{target_port}")
 
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.connect((target_ip, target_port))
-        server_socket.send(client_msg.encode())
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((target_ip, target_port))
+            s.send(client_msg)
+            response = s.recv(4096)
 
-
-        server_response = server_socket.recv(1024).decode()
-        print(f"[Relai1] Réponse du serveur : {server_response}")
-
-
-        client_conn.send(server_response.encode())
-
-        server_socket.close()
-        client_conn.close()
-        print(f"[Relai1] Terminé avec {client_addr}")
+        client_conn.send(response)
 
     except Exception as e:
-        error_msg = f"[Relai1] Erreur : {e}"
-        print(error_msg)
-        client_conn.send(error_msg.encode())
+        print(f"[Relai] Erreur : {e}")
+        client_conn.send(b"[Erreur relais]")
+
+    finally:
         client_conn.close()
 
-
 def start_relay():
+    cle_privee = charger_cle_privee(CLE_PRIVEE_PATH)
+
     relay_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    relay_socket.bind(('127.0.0.1', 7001))
+    relay_socket.bind(('127.0.0.1', PORT))
     relay_socket.listen()
-    print("[Relai1] En attente de connexions clients...")
+    print(f"[Relai] En écoute sur le port {PORT}...")
 
     while True:
         client_conn, client_addr = relay_socket.accept()
-        thread = threading.Thread(target=handle_client, args=(client_conn, client_addr))
+        thread = threading.Thread(target=handle_client, args=(client_conn, client_addr, cle_privee))
         thread.start()
-        print(f"[Relai1] Nombre de threads actifs : {threading.active_count() - 1}")
-
 
 if __name__ == "__main__":
     start_relay()
